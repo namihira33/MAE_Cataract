@@ -28,7 +28,7 @@ import copy
 
 
 c = {
-    'model_name': 'ViT_1k','seed': 0, 'bs': 32
+    'model_name': 'MAE_ViT','seed': 0, 'bs': 32
 }
 
 torch.backends.cudnn.benchmark = True
@@ -99,7 +99,19 @@ class Evaluater():
         self.c['type'] = CataractTypeToInt(self.c['type'])
 
         #テストデータセットの用意。
-        self.dataset = load_dataset(self.c['n_per_unit'],self.c['type'],'Add_BlackRects')
+        #pickleファイル、水平断面、回転断面16枚16ラベルを対応づける場合 ()
+        pickle_file = config.normal_pkl        
+        
+        #訓練、検証に分けてデータ分割
+        if os.path.exists(pickle_file):
+            with open(pickle_file,mode="rb") as f:
+                self.dataset = pickle.load(f)
+        else :
+            self.dataset = load_dataset(self.c['n_per_unit'],self.c['type'],'Add')
+            with open(pickle_file,mode="wb") as f:
+                pickle.dump(self.dataset,f)
+
+        #self.dataset = load_dataset(self.c['n_per_unit'],self.c['type'],'Add_BlackRects')
         test_id_index,_ = calc_kfold_criterion('test')
         test_index,_ = calc_dataset_index(test_id_index,[],'test',self.c['n_per_unit'])
         test_dataset = Subset(self.dataset['test'],test_index)
@@ -149,7 +161,11 @@ class Evaluater():
         make_PRC(labels,preds,save_fig_path,config.n_class) #クラスiの場合のグラフも作る (縦に3つでとりあえず作ってみる)
         #make_PRBar(labels,preds,save_fig_path2,config.n_class )
 
-        roc_auc = roc_auc_score(labels, preds,multi_class="ovr",average="macro")
+        #roc_auc = roc_auc_score(labels, preds,multi_class="ovr",average="macro")
+        
+        #2クラス分類の場合
+        roc_auc = roc_auc_score(labels, preds[:,1])
+
         #fig_path = model_info + '_ep_ROC.png'
         #save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
         #make_ROC(labels,preds[:,1],save_fig_path)
@@ -158,6 +174,7 @@ class Evaluater():
         temp_class = np.arange(config.n_class)
         preds = np.sum(preds*temp_class,axis=1)
 
+
         #threshold = 0.5
         #preds[preds<threshold] = 0
         #preds[preds>=threshold] = 1
@@ -165,6 +182,8 @@ class Evaluater():
         # 1.6478594e-08
         # 二値より細かい分割の場合
         preds = np.array([round(x) for x in preds])
+
+        #roc_auc = roc_auc_score(labels, preds)
 
         #preds = np.argmax(preds,axis=1)
         #labels = np.argmax(labels,axis=1)
@@ -185,11 +204,11 @@ class Evaluater():
 
 
         #混同行列を作り、ヒートマップで可視化。
-        fig_path = model_info + '_ep_CM.png'
-        save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
+        #fig_path = model_info + '_ep_CM.png'
+        #save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
 
-        cm = confusion_matrix(labels,preds)
-        make_ConfusionMatrix(cm,save_fig_path)
+        #cm = confusion_matrix(labels,preds)
+        #make_ConfusionMatrix(cm,save_fig_path)
 
         right += (preds == labels).sum()
         notright += len(preds) - (preds == labels).sum()

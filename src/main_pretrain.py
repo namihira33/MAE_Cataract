@@ -120,6 +120,7 @@ def main(args):
     cudnn.benchmark = True
 
     # simple augmentation
+    '''
     transform_train = transforms.Compose(
         [
             transforms.Resize(224),
@@ -131,19 +132,33 @@ def main(args):
             transforms.Normalize((0.5, ), (0.5, )),
         ]
     )
+    '''
 
-    pkl_file = config.MAE_dataset_pkl
-    if os.path.exists(pkl_file):
-            with open(pkl_file,mode="rb") as f:
-                    dataset_train = pickle.load(f)
-    else :
-            dataset_train = load_dataset(config.n_per_unit,'_','_',train_transform = transform_train,root=os.path.join(args.data_path,"CASIA2_Add"))
-            with open(pkl_file,mode="wb") as f:
-                pickle.dump(dataset_train,f)
+    #一旦普通のtransformで学習させてみる 16chなので、augmentation入れると学習できないかも
+
+    transform_train = \
+                        transforms.Compose([
+                                transforms.RandomResizedCrop(224, scale=(0.8, 1.0), interpolation=transforms.InterpolationMode.BICUBIC),
+                                transforms.RandomHorizontalFlip(),
+                                #transforms.Resize(config.image_size),
+                                #transforms.CenterCrop(config.image_size),
+                                transforms.ToTensor(),
+                                transforms.Grayscale(),
+                                transforms.Normalize((0.5, ), (0.5, )),
+                                ])
+
+    #pkl_file = config.MAE_dataset_pkl
+    #if os.path.exists(pkl_file):
+    #        with open(pkl_file,mode="rb") as f:
+    #                dataset_train = pickle.load(f)
+    #else :
+    #        dataset_train = load_dataset(config.n_per_unit,'_','_',train_transform = transform_train,root=os.path.join(args.data_path,"CASIA2_Add"))
+    #        with open(pkl_file,mode="wb") as f:
+    #            pickle.dump(dataset_train,f)
 
     #pickleを使わない場合は下で. pickleを一回使ってうまく行けば上を使う.
     #dataset_train = load_dataset(config.n_per_unit,'_','_',train_transform = transform_train,root=os.path.join(args.data_path,"CASIA2_Add"))
-    #dataset_train = datasets.ImageFolder(os.path.join(args.data_path, "CASIA2_Add"), transform=transform_train)
+    dataset_train = datasets.ImageFolder(os.path.join(args.data_path, "CASIA2_Add"), transform=transform_train)
     print(dataset_train)
 
     if True:  # args.distributed:

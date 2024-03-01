@@ -51,7 +51,7 @@ class OCThorizontalDatasetBase(Dataset):
 
     def __getitem__(self, index):
         image_name = self.image_names[index]
-        image = Image.open(image_name).convert('RGB')
+        image = Image.open(image_name).convert('L')
         label = torch.eye(config.n_class)[self.labels[index]]
         #label = [self.labels[index]]
         #label = normal_distribution(self.labels[index])
@@ -209,6 +209,7 @@ class OCTspinDatasetBase(Dataset):
                     if transform is not None:
                         subset_image = self.transform(subset_image)
                     spin_images = torch.cat((spin_images,subset_image),0)
+                #spin_images = self.transform(spin_images)
                 spin_images = torch.reshape(spin_images,(1,n_per_unit,config.image_size,config.image_size))
                 self.images = torch.cat((self.images,spin_images),0)
                 label = self.get_label(int(item[d_type][0]))
@@ -248,8 +249,12 @@ class OCTspinDataset(OCTspinDatasetBase):
     def get_label(self, label_base):
         if label_base == 1:
             return 0
-        else:
+        elif label_base == 2:
             return 1
+        elif label_base == 3:
+            return 1
+        else:
+            return 2
 
 
 class OCTspinMAEDatasetBase(Dataset):
@@ -265,10 +270,13 @@ class OCTspinMAEDatasetBase(Dataset):
         image_cnt = 0
         spin_images = torch.empty(0)
 
+        '''
+
         for image_name in self.image_names:
             subset_image = Image.open(image_name).convert('L')
             if transform is not None:
-                subset_image = self.transform(subset_image)
+                #subset_image = self.transform(subset_image)
+                subset_image = transform(subset_image)
             print(image_name)
             spin_images = torch.cat((spin_images,subset_image),0)
             print(spin_images.size())
@@ -282,29 +290,48 @@ class OCTspinMAEDatasetBase(Dataset):
                 image_cnt = 0
                 spin_images = torch.empty(0)
                 print(self.images.size())
+                '''
 
 
-        self.item_indexes = np.array(range(len(self.labels)*n_per_unit))
-        self.transform = transform
+        #self.item_indexes = np.array(range(len(self.labels)*n_per_unit))
 
     def __getitem__(self, index):
-        #image_name = self.image_names[index]
-        #image = Image.open(image_name).convert('L')
-        image = self.images[index]
-        label = self.labels[index]
+
+        spin_image = torch.empty(0)
+        
+        image_names = self.image_names[index*16:(index+1)*16]
+
+        for image_name in image_names:
+            subset_image = Image.open(image_name).convert('L')
+            if self.transform is not None:
+                totensor = transforms.ToTensor()
+                subset_image = totensor(subset_image)
+                #mean_values = torch.mean(subset_image,dim=(1,2))
+                #std_values = torch.std(subset_image,dim=(1,2))
+                #normalize = transforms.Normalize(mean=mean_values.tolist(),std=std_values.tolist())
+                #subset_image = normalize(subset_image)
+
+            spin_image = torch.cat((spin_image,subset_image),0)
+
+        if self.transform is not None:
+            spin_image = self.transform(spin_image)
+
+        image_name = self.image_names[index*16]
+
+        #label = self.labels[index*16]
         #label = torch.eye(config.n_class)[self.labels[index]]
         #item_index = self.item_indexes[index]
         #if self.transform is not None:
         #    image = self.transform(image)
 
-        return (image,label)
+        return (spin_image,image_name)
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.image_names) // 16
 
-    def pick_label(self, index):
-        label = torch.eye(config.n_class)[self.labels[index]]
-        return torch.Tensor(label)
+    #def pick_label(self, index):
+    #    label = torch.eye(config.n_class)[self.labels[index]]
+    #    return torch.Tensor(label)
 
         
 
@@ -322,13 +349,13 @@ def load_dataset(n_per_unit,d_type,preprocess,train_transform=None,root=None):
             transforms.Compose([transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                transforms.Normalize((0.5, ),(0.5, ))
+                                #transforms.Normalize((0.5, ),(0.5, ))
                                 ])
     test_transform = \
             transforms.Compose([transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                transforms.Normalize((0.5, ),(0.5, ))
+                                #transforms.Normalize((0.5, ),(0.5, ))
                                                     ])
                                                 
         
@@ -342,7 +369,7 @@ def load_dataset(n_per_unit,d_type,preprocess,train_transform=None,root=None):
                                 transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                transforms.Normalize((0.5, ), (0.5, )),
+                                #transforms.Normalize((0.5, ), (0.5, )),
                                 ])
         dataset['train'] = \
             OCThorizontalDataset(root=os.path.join(config.data_root,preprocess),
@@ -373,7 +400,7 @@ def load_dataset(n_per_unit,d_type,preprocess,train_transform=None,root=None):
                                 transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                transforms.Normalize((0.5, ), (0.5, )),
+                                #transforms.Normalize((0.5, ), (0.5, )),
                                 ])
             dataset['train'] = \
                 OCTspinDataset(root=config.data_root,

@@ -152,6 +152,41 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
         return outcome
 
+class MAE_16to1(nn.Module):
+    def __init__(self,encoder,B):
+        super().__init__()
+        self.encoder = encoder
+        self.norm = nn.LayerNorm(768, eps=1e-06, elementwise_affine=True)
+        self.fc_norm = nn.Identity()
+        self.head_drop = nn.Dropout(p=0.0)
+        self.heads = [nn.Linear(in_features=768, out_features=config.n_class, bias=True).to(device) for x in range(16)]
+        self.softmax = nn.Softmax(dim=1)
+        self.last_fc = nn.Linear(in_features=16,out_features=1,bias=True)
+
+    def forward(self,x):
+        preds = torch.empty(0).to(device)
+        for i in range(16):
+            #i断面の画像のみを取得
+            feature = self.encoder(x[:,i,:,:].unsqueeze(1))
+            feature = self.norm(feature)
+            feature = self.fc_norm(feature)
+            feature = self.head_drop(feature)
+            feature = self.heads[i](feature)
+            pred = self.softmax(feature[:,0,:])
+            temp_class_tensor = torch.arange(config.n_class).float().to(device)
+            pred = pred.unsqueeze(0)
+            temp_class_tensor = temp_class_tensor.unsqueeze(1)
+            pred = torch.matmul(pred,temp_class_tensor).to(device)
+            preds = torch.cat((preds,pred),0)
+
+        preds = torch.transpose(preds,0,1)
+        preds = preds.squeeze()
+        x = self.last_fc(preds)
+
+        return x
+            
+
+
 
 
 def vit_base_patch16(**kwargs):
@@ -248,5 +283,9 @@ def make_model(name,n_per_unit,encoder=None):
         net = timm.create_model(model_name,pretrained=True,num_classes=config.n_class).to(device)
     elif name == 'MAE_ViT':
        net = vit_base_patch16()
+
+    #MAE_ViT16to1みたいなモデルを作って、エンコーダーを読み込んだ後は16個のヘッドを使ってforwardさせるコードを書く.
+    #elif name == 'MAE_ViT_16to1':
+        #net = vit_base_patch16()
 
     return net

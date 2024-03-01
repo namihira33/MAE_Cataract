@@ -13,14 +13,15 @@ do
        do
           for beta in 0
           do
-              for lr in  5e-4
+              for lr in 5e-4
                do
-               python3 ./src/run.py cv=0 evaluate=0 mode=spin type=C preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=45
+               python3 ./src/run.py cv=1 evaluate=0 mode=spin type=C preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=45
                done
           done
      done
   done
 done
+
 
 #N2 _ ViT FineTuning ImageNet Baseline
 #python3 ./src/run.py cv=1 evaluate=0 mode=horizontal type=N preprocess=Add_BlackRects sampler=over gamma=1 beta=0.99 lr=0.0005 epoch=50

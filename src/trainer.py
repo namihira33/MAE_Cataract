@@ -169,19 +169,19 @@ class Trainer():
 
             lossList = {}
             for phase in ['learning','valid']:
-                if self.c['cv'] : 
+                if self.c['cv'] == 0: 
                     lossList[phase] = [[] for x in range(1)]  #self.n_splits
                 else:
                     lossList[phase] = [[] for x in range(self.n_splits)]
 
             model_mae = prepare_model(config.mae_path,'mae_vit_base_patch16')
 
-
             #learning_id_index , valid_id_index = kf.split(train_id_index,y).__next__() 1つだけ取り出したいとき
             for a,(learning_id_index,valid_id_index) in enumerate(id_index):
-                #self.net.apply(init_weights)
-                self.net = make_model(self.c['model_name'],self.c['n_per_unit'])#.to(device)
-                state_dict = self.net.state_dict()
+
+
+                self.vit = make_model('MAE_ViT',self.c['n_per_unit'])
+                state_dict = self.vit.state_dict()
 
                 temp_mae = torch.load(config.mae_path,map_location='cpu')
                 model_mae = temp_mae['model']
@@ -191,32 +191,39 @@ class Trainer():
                 for k in ['head.weight','head.bias']:
                     if k in temp_mae and temp_mae[k].shape != state_dict[k].shape:
                         del model_mae[k]
-                interpolate_pos_embed(self.net,model_mae)
+                interpolate_pos_embed(self.vit,model_mae)
 
-                msg = self.net.load_state_dict(model_mae,strict=False)
+                msg = self.vit.load_state_dict(model_mae,strict=False)
+
                 #print(msg)
 
-                trunc_normal_(self.net.head.weight,std=2e-5)
+                encoder = vit_model = nn.Sequential(*list(self.vit.children())[:-1])
+
+                self.net = MAE_16to1(encoder,self.c['bs'])
+
+
                 self.net.to(device)
+
 
                 #self.net = nn.DataParallel(self.net).to(device)
                 self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
                 #self.optimizer = optim.AdamW(params=self.net.parameters(),lr=self.c['lr'])
                 #self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,max_epochs=70,warmup_start_ler=5e-5,eta_min=5e-5)
                 #self.optimizer = Lion(params=self.net.parameters(),lr=self.c['lr'],weight_decay=1e-2)
-                self.scheduler = torch.optim.lr_scheduler.LinearLR(self.optimizer,start_factor=self.c['lr'],end_factor=1e-4,total_iters=self.c['n_epoch'])
+                self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,step_size=15,gamma=0.8)
 
                 #画像に対応したIDに変換 -> Dataloaderで読み込む。
                 learning_index,valid_index = calc_dataset_index(learning_id_index,valid_id_index,'train',self.c['n_per_unit'])
                 learning_dataset = Subset_label(self.dataset['train'],learning_index)
 
                 #訓練データの各クラス数をカウントしないといけないのでは？
-                
+        
                 #self.class_weight = calc_class_inverse_weight(learning_dataset)
                 self.class_weight = calc_class_weight(learning_dataset,config.n_class,beta=self.c['beta'])
                 calc_class_count(learning_dataset,config.n_class)
                 #self.criterion = nn.BCELoss(weight=self.class_weight.to(device))
-                self.criterion = Focal_MultiLabel_Loss(gamma=self.c['gamma'],weights=self.class_weight.to(device))
+                #self.criterion = Focal_MultiLabel_Loss(gamma=self.c['gamma'],weights=self.class_weight.to(device))
+                self.criterion = nn.MSELoss()
 
 
                 #Dataloaderの種類を指定
@@ -239,7 +246,7 @@ class Trainer():
                     learningauc,learningloss,learningprecision,learningrecall \
                         = self.execute_epoch(epoch, 'learning')
                     #平均計算用にauc.lossを保存。
-                    lossList['learning'][a].append(learningloss)
+                    #lossList['learning'][a].append(learningloss)
 
                     if not self.c['evaluate']:
                         valid_pr_auc,validloss,validprecision,validrecall \
@@ -253,7 +260,7 @@ class Trainer():
                         #    break
 
 
-                        lossList['valid'][a].append(validloss)
+                        #lossList['valid'][a].append(validloss)
 
                         #valid_pr_aucを蓄えておいてあとでベスト10を出力
                         temp = valid_pr_auc,epoch,self.c
@@ -339,9 +346,9 @@ class Trainer():
             labels_ = torch.max(labels_,1)[1]
 
             #Samplerを使うときの処理
-            if phase == 'learning' and ((self.c['sampler'] == 'over') or (self.c['sampler'] == 'under')):
-                inputs_ = inputs_.unsqueeze(1)
-                labels_ = labels_.unsqueeze(1)
+            #if phase == 'learning' and ((self.c['sampler'] == 'over') or (self.c['sampler'] == 'under')):
+            #    inputs_ = inputs_.unsqueeze(1)
+            #    labels_ = labels_.unsqueeze(1)
 
 
             self.optimizer.zero_grad()
@@ -353,27 +360,31 @@ class Trainer():
 #                    feature_extractor = DeiTFeatureExtractor.from_pretrained(model_name)
  #                   inputs_ = feature_extractor(images=inputs_,return_tensor='pt')
 
-
                 outputs_ = self.net(inputs_).to(device)
 
                 #outputs__ = outputs_.unsqueeze(1)
-                loss = self.criterion(outputs_, labels_.long())
+                outputs_ = torch.squeeze(outputs_)
+
+                if outputs_.size() != labels_.size():
+                    break
+
+                loss = self.criterion(outputs_, labels_.float())
                 total_loss += loss.item()
 
                 if phase == 'learning':
                     loss.backward(retain_graph=True)
                     self.optimizer.step()
 
-            softmax = nn.Softmax(dim=1)
-            ouputs_ = softmax(outputs_)
+            #softmax = nn.Softmax(dim=1)
+            #ouputs_ = softmax(outputs_)
 
-            preds += [outputs_.detach().cpu().numpy()]
+            preds += [outputs_.detach().cpu().numpy().flatten()]
             labels += [labels_.detach().cpu().numpy()]
             total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
 
-        self.scheduler.step()
-        print(f"Epoch [{epoch+1}], Learning Rate: {self.optimizer.param_groups[0]['lr']}")
-
+        if phase == 'learning' :
+            self.scheduler.step()
+        #print(f"Epoch [{epoch}], Learning Rate: {self.optimizer.param_groups[0]['lr']}")
 
         preds = np.concatenate(preds)
         labels = np.concatenate(labels)
@@ -381,19 +392,27 @@ class Trainer():
         pr_auc = macro_pr_auc(labels,preds,config.n_class)
 
         try:
-            roc_auc = roc_auc_score(labels, preds[:,1])
+            roc_auc = roc_auc_score(labels, preds)
         except:
             roc_auc = 0
 
         #予測値決定後のスコア (マクロ平均)を求める
 
-        preds = np.argmax(preds,axis=1)
+        #preds = np.argmax(preds,axis=1)
         #labels = np.argmax(labels,axis=1)
+        preds[preds<0.5] = 0
+        preds[preds>=0.5] = 1
 
         total_loss /= len(preds)
-        recall = recall_score(labels,preds,average='macro')
-        precision = precision_score(labels,preds,zero_division=0,average='macro')
-        f1 = f1_score(labels,preds,average='macro')
+        #recall = recall_score(labels,preds,average='macro')
+        recall = recall_score(labels,preds)
+
+        #precision = precision_score(labels,preds,zero_division=0,average='macro')
+        precision = precision_score(labels,preds,zero_division=0)
+
+        #f1 = f1_score(labels,preds,average='macro')
+        f1 = f1_score(labels,preds)
+
         confusion_Matrix = confusion_matrix(labels,preds)
         try:
             TN = confusion_Matrix[0][0]

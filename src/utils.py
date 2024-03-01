@@ -576,7 +576,7 @@ def make_PRBar(labels,preds,save_fig_path,n_class):
 def macro_pr_auc(labels,preds,n_class):
         # 2クラスだったら、PR-AUCをそのまま返す
         if n_class == 2:
-            preds = preds[:,1]
+            #preds = preds[:,1]
 
             try:
                 precisions,recalls,thresholds = precision_recall_curve(labels, preds)
