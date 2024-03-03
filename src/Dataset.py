@@ -222,7 +222,6 @@ class OCTspinDatasetBase(Dataset):
         self.item_indexes = np.array(range(len(labels)))
         self.image_list_file = image_list_file
 
-
     def __getitem__(self, index):
         image_name = self.image_names[index]
         #image = Image.open(image_name).convert('L')
@@ -254,7 +253,7 @@ class OCTspinDataset(OCTspinDatasetBase):
         elif label_base == 3:
             return 1
         else:
-            return 2
+            return 1
 
 
 class OCTspinMAEDatasetBase(Dataset):
@@ -349,13 +348,13 @@ def load_dataset(n_per_unit,d_type,preprocess,train_transform=None,root=None):
             transforms.Compose([transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                #transforms.Normalize((0.5, ),(0.5, ))
+                                transforms.Normalize((0.5, ),(0.5, ))
                                 ])
     test_transform = \
             transforms.Compose([transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                #transforms.Normalize((0.5, ),(0.5, ))
+                                transforms.Normalize((0.5, ),(0.5, ))
                                                     ])
                                                 
         
@@ -369,7 +368,7 @@ def load_dataset(n_per_unit,d_type,preprocess,train_transform=None,root=None):
                                 transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                #transforms.Normalize((0.5, ), (0.5, )),
+                                transforms.Normalize((0.5, ), (0.5, )),
                                 ])
         dataset['train'] = \
             OCThorizontalDataset(root=os.path.join(config.data_root,preprocess),
@@ -400,7 +399,7 @@ def load_dataset(n_per_unit,d_type,preprocess,train_transform=None,root=None):
                                 transforms.Resize(config.image_size),
                                 transforms.CenterCrop(config.image_size),
                                 transforms.ToTensor(),
-                                #transforms.Normalize((0.5, ), (0.5, )),
+                                transforms.Normalize((0.5, ), (0.5, )),
                                 ])
             dataset['train'] = \
                 OCTspinDataset(root=config.data_root,

@@ -15,7 +15,7 @@ do
           do
               for lr in 5e-4
                do
-               python3 ./src/run.py cv=1 evaluate=0 mode=spin type=C preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=45
+               python3 ./src/run.py cv=0 evaluate=1 mode=spin type=C preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=18
                done
           done
      done

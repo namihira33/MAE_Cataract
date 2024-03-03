@@ -197,11 +197,9 @@ class Trainer():
 
                 #print(msg)
 
-                encoder = vit_model = nn.Sequential(*list(self.vit.children())[:-1])
+                #encoder = vit_model = nn.Sequential(*list(self.vit.children())[:-1])
 
-                self.net = MAE_16to1(encoder,self.c['bs'])
-
-
+                self.net = MAE_16to1(self.vit,self.c['bs'])
                 self.net.to(device)
 
 
