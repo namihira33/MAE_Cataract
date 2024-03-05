@@ -84,6 +84,8 @@ def calc_class_count(dataset,n_class):
     for i in range(len(dataset)):
         if all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([1])):
             label = 1
+        elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([2])):
+            label = 2
         else :
             label = 0
         class_count[label] += 1

@@ -25,10 +25,13 @@ import matplotlib
 import japanize_matplotlib
 import csv
 import copy
+from timm.models.layers import trunc_normal_
+from util.pos_embed import interpolate_pos_embed
+from lion_pytorch import Lion
 
 
 c = {
-    'model_name': 'MAE_ViT','seed': 0, 'bs': 32
+    'model_name': 'MAE_ViT','seed': 0, 'bs': 2
 }
 
 torch.backends.cudnn.benchmark = True
@@ -87,7 +90,21 @@ class Evaluater():
         model_path = os.path.join(config.MODEL_DIR_PATH,temp)
 
         #モデルの作成。
-        self.net = make_model(self.c['model_name'],self.c['n_per_unit'])
+        #self.vit = make_model(self.c['model_name'],self.c['n_per_unit'])
+        self.vit = make_model('MAE_ViT',self.c['n_per_unit'])
+        state_dict = self.vit.state_dict()
+
+        temp_mae = torch.load(config.mae_path,map_location='cpu')
+        model_mae = temp_mae['model']
+
+        for k in ['head.weight','head.bias']:
+            if k in temp_mae and temp_mae[k].shape != state_dict[k].shape:
+                del model_mae[k]
+        interpolate_pos_embed(self.vit,model_mae)
+
+        msg = self.vit.load_state_dict(model_mae,strict=False)
+        self.net = MAE_16to1(self.vit,self.c['bs'])
+
         #model_name = 'vit_base_patch16_224'
         #self.net = timm.create_model(model_name,num_classes=config.n_class).to(device)
         self.net.load_state_dict(torch.load(model_path,map_location=device))
@@ -131,7 +148,6 @@ class Evaluater():
 
             torch.set_grad_enabled(True)
             outputs_ = self.net(inputs_)
-            outputs_ = nn.Softmax(dim=1)(outputs_)
 
             #loss = self.criterion(outputs_, labels_)
 
@@ -158,13 +174,12 @@ class Evaluater():
 
         #多クラスの場合、PR-AUCのマクロ平均を計算する
         pr_auc = macro_pr_auc(labels, preds,config.n_class)
-        make_PRC(labels,preds,save_fig_path,config.n_class) #クラスiの場合のグラフも作る (縦に3つでとりあえず作ってみる)
+        #make_PRC(labels,preds,save_fig_path,config.n_class) #クラスiの場合のグラフも作る (縦に3つでとりあえず作ってみる)
         #make_PRBar(labels,preds,save_fig_path2,config.n_class )
-
         #roc_auc = roc_auc_score(labels, preds,multi_class="ovr",average="macro")
         
         #2クラス分類の場合
-        roc_auc = roc_auc_score(labels, preds[:,1])
+        roc_auc = roc_auc_score(labels, preds)
 
         #fig_path = model_info + '_ep_ROC.png'
         #save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
@@ -174,14 +189,13 @@ class Evaluater():
         temp_class = np.arange(config.n_class)
         preds = np.sum(preds*temp_class,axis=1)
 
-
-        #threshold = 0.5
-        #preds[preds<threshold] = 0
-        #preds[preds>=threshold] = 1
+        threshold = 0.5
+        preds[preds<threshold] = 0
+        preds[preds>=threshold] = 1
 
         # 1.6478594e-08
         # 二値より細かい分割の場合
-        preds = np.array([round(x) for x in preds])
+        #preds = np.array([round(x) for x in preds])
 
         #roc_auc = roc_auc_score(labels, preds)
 
@@ -204,18 +218,18 @@ class Evaluater():
 
 
         #混同行列を作り、ヒートマップで可視化。
-        #fig_path = model_info + '_ep_CM.png'
-        #save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
+        fig_path = model_info + '_ep_CM.png'
+        save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
 
-        #cm = confusion_matrix(labels,preds)
-        #make_ConfusionMatrix(cm,save_fig_path)
+        cm = confusion_matrix(labels,preds)
+        make_ConfusionMatrix(cm,save_fig_path)
 
         right += (preds == labels).sum()
         notright += len(preds) - (preds == labels).sum()
         accuracy = right / len(test_dataset)
-        recall = recall_score(labels,preds,average='macro')
-        precision = precision_score(labels,preds,average='macro')
-        f1 = f1_score(labels,preds,average='macro')
+        recall = recall_score(labels,preds)
+        precision = precision_score(labels,preds)
+        f1 = f1_score(labels,preds)
         #f1 = macro_f1(labels,preds,config.n_class)
         #make_F1Bar(labels,preds,save_fig_path3,config.n_class)
 

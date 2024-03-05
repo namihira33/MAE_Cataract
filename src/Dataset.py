@@ -253,7 +253,7 @@ class OCTspinDataset(OCTspinDatasetBase):
         elif label_base == 3:
             return 1
         else:
-            return 1
+            return 2
 
 
 class OCTspinMAEDatasetBase(Dataset):

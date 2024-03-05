@@ -157,6 +157,7 @@ class  MAE_16to1(nn.Module):
         super().__init__()
         self.mae_vit = vit
         self.softmax = nn.Softmax(dim=1)
+        self.sigmoid = nn.Sigmoid()
         self.last_fc = nn.Linear(in_features=16,out_features=1,bias=True)
     
     def forward(self,x):
@@ -173,6 +174,7 @@ class  MAE_16to1(nn.Module):
         preds = torch.transpose(preds,0,1)
         preds = preds.squeeze()
         x = self.last_fc(preds)
+        x = self.sigmoid(x)
 
         return x
 
