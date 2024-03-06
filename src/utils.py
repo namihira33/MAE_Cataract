@@ -87,19 +87,22 @@ class TripleOverSampler:
         imgs = torch.empty(0)
         labels = torch.empty(0)
 
-        #datasetをtorch.Tensorとして取り出す
-        for i in range(len(dataset)):
-            img = dataset[i][0]
-            imgs = torch.cat((imgs,img),0)
-            label = torch.Tensor([np.argmax(dataset[i][1].detach().cpu().numpy())])
-            labels = torch.cat((labels,label))
-
-        self.features = imgs
-        self.labels = labels
+        l = len(dataset)
+        self.imgs = torch.squeeze(torch.stack([dataset[i][0].detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        self.labels = torch.squeeze(torch.stack([dataset.pick_label(i).detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        #self.labels = torch.squeeze(torch.stack([dataset[i][1].detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        labels = []
+        for i in range(l):
+            if all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([1])):
+                labels += [1]
+            elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([2])):
+                labels += [2]
+            else :
+                labels += [0]
 
         label_counts = np.bincount(labels)
         major_label = label_counts.argmax()
-        mid_label = np.argsort(label_counts,axis=1)
+        mid_label = np.argsort(label_counts)[-2]
         minor_label = label_counts.argmin()
 
         print(label_counts,major_label,mid_label,minor_label)
@@ -110,12 +113,13 @@ class TripleOverSampler:
         self.minor_indices = np.where(labels == minor_label)[0]
 
         np.random.shuffle(self.major_indices)
+        np.random.shuffle(self.mid_indices)
         np.random.shuffle(self.minor_indices)
 
         self.used_indices = 0  #(多数クラスの中で使用したインデックスの数)
         self.count = 0
         self.n_samples = n_samples
-        self.batch_size = self.n_samples * 2
+        self.batch_size = self.n_samples * 3
 
     def __iter__(self):
         self.count = 0
@@ -132,7 +136,7 @@ class TripleOverSampler:
                 label = label.unsqueeze(0)
                 labels = torch.cat((labels,label))
 
-            yield torch.tensor(self.features[indices]), labels,0
+            yield torch.tensor(self.imgs[indices]), labels,0
 
             self.used_indices += self.n_samples
             self.count += self.n_samples

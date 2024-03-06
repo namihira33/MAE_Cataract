@@ -204,7 +204,6 @@ class Trainer():
                 self.net = MAE_16to1(self.vit,self.c['bs'])
                 self.net.to(device)
 
-
                 #self.net = nn.DataParallel(self.net).to(device)
                 self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
                 #self.optimizer = optim.AdamW(params=self.net.parameters(),lr=self.c['lr'])
@@ -222,17 +221,21 @@ class Trainer():
                 self.class_weight = calc_class_weight(learning_dataset,config.n_class,beta=self.c['beta'])
                 calc_class_count(learning_dataset,config.n_class)
                 #self.criterion = nn.BCELoss(weight=self.class_weight.to(device))
-                #self.criterion = Focal_MultiLabel_Loss(gamma=self.c['gamma'],weights=self.class_weight.to(device))
-                self.criterion = nn.MSELoss()
+                self.criterion = Focal_MultiLabel_Loss(gamma=self.c['gamma'],weights=self.class_weight.to(device))
+                #self.criterion = nn.MSELoss()
 
 
                 #Dataloaderの種類を指定
                 if self.c['sampler'] == 'normal':
                     self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],num_workers=os.cpu_count(),shuffle=True)
                 elif self.c['sampler'] == 'over':
-                    self.dataloaders['learning'] = BinaryOverSampler(learning_dataset,self.c['bs']//config.n_class)
+                    #self.dataloaders['learning'] = BinaryOverSampler(learning_dataset,self.c['bs']//config.n_class)
+                    self.dataloaders['learning'] = TripleOverSampler(learning_dataset,self.c['bs']//config.n_class)
+
                 elif self.c['sampler'] == 'under':
-                    self.dataloaders['learning'] = BinaryUnderSampler(learning_dataset,self.c['bs']//config.n_class)
+                    #self.dataloaders['learning'] = BinaryUnderSampler(learning_dataset,self.c['bs']//config.n_class)
+                    self.dataloaders['learning'] = TripleUnderSampler(learning_dataset,self.c['bs']//config.n_class)
+
 
                 if not self.c['evaluate']:
                     valid_dataset = Subset_label(self.dataset['valid'],valid_index)
@@ -342,6 +345,11 @@ class Trainer():
             inputs_ = inputs_.to(device)
             labels_ = labels_.to(device)
 
+            print(labels_)
+
+            if inputs_.shape[0] == 1:
+                break
+
             #labels_はOne-hot表現じゃないようにする
             labels_ = torch.max(labels_,1)[1]
 
@@ -365,8 +373,8 @@ class Trainer():
                 #outputs__ = outputs_.unsqueeze(1)
                 outputs_ = torch.squeeze(outputs_)
 
-                if outputs_.size() != labels_.size():
-                    break
+                #if outputs_.size() != labels_.size():
+                #    break
 
                 loss = self.criterion(outputs_, labels_.float())
                 total_loss += loss.item()
@@ -378,13 +386,14 @@ class Trainer():
             #softmax = nn.Softmax(dim=1)
             #ouputs_ = softmax(outputs_)
 
-            preds += [outputs_.detach().cpu().numpy().flatten()]
+            preds += [outputs_.detach().cpu().numpy()]
             labels += [labels_.detach().cpu().numpy()]
             total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
 
         if phase == 'learning' :
             self.scheduler.step()
         #print(f"Epoch [{epoch}], Learning Rate: {self.optimizer.param_groups[0]['lr']}")
+        #print(preds)
 
         preds = np.concatenate(preds)
         labels = np.concatenate(labels)
@@ -392,26 +401,23 @@ class Trainer():
         pr_auc = macro_pr_auc(labels,preds,config.n_class)
 
         try:
-            roc_auc = roc_auc_score(labels, preds)
+            roc_auc = roc_auc_score(labels, preds,multi_class='ovr',average='macro')
         except:
             roc_auc = 0
 
         #予測値決定後のスコア (マクロ平均)を求める
 
-        #preds = np.argmax(preds,axis=1)
-        #labels = np.argmax(labels,axis=1)
-        preds[preds<0.5] = 0
-        preds[preds>=0.5] = 1
+        preds = np.argmax(preds,axis=1)
 
         total_loss /= len(preds)
         #recall = recall_score(labels,preds,average='macro')
-        recall = recall_score(labels,preds)
+        recall = recall_score(labels,preds,average='macro')
 
         #precision = precision_score(labels,preds,zero_division=0,average='macro')
-        precision = precision_score(labels,preds,zero_division=0)
+        precision = precision_score(labels,preds,zero_division=0,average='macro')
 
         #f1 = f1_score(labels,preds,average='macro')
-        f1 = f1_score(labels,preds)
+        f1 = f1_score(labels,preds,average='macro')
 
         confusion_Matrix = confusion_matrix(labels,preds)
         try:

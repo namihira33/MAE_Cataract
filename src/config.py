@@ -17,7 +17,9 @@ test_info_list = '../medicaldata/txt/casia16_test_list.csv'
 #normal_pkl = '../medicaldata/pkls/OCT_P2_16to1spin.pkl'
 #normal_pkl = '../medicaldata/pkls/OCT_C2_horizontal.pkl'
 #normal_pkl = 'OCT_MAE2_transforms2.pkl'
-normal_pkl =  '../medicaldata/pkls/OCT_N3_spin16to1.pkl'
+#normal_pkl =  '../medicaldata/pkls/OCT_N3_spin16to1.pkl'
+normal_pkl =  '../medicaldata/pkls/OCT_Over_N3_spin16to1.pkl'
+
 
 #MAE_dataset_pkl = '../medicaldata/pkls/OCT_MAEViT_spin2.pkl'
 #MAE_dataset_pkl = '../medicaldata/pkls/OCT_MAEViT_C2_16to1_0.8.pkl'

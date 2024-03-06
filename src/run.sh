@@ -7,7 +7,7 @@
 
 for preprocess in Add_BlackRects
 do
-    for sampler in normal
+    for sampler in over
     do
         for gamma in 0
        do
@@ -15,7 +15,7 @@ do
           do
               for lr in 5e-4
                do
-               python3 ./src/run.py cv=0 evaluate=1 mode=spin type=N preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=21
+               python3 ./src/run.py cv=0 evaluate=0 mode=spin type=N preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=1
                done
           done
      done

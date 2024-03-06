@@ -151,6 +151,8 @@ class Evaluater():
 
             #loss = self.criterion(outputs_, labels_)
 
+            outputs_ = torch.squeeze(outputs_)
+
             preds += [outputs_.detach().cpu().numpy()]
             labels += [labels_.detach().cpu().numpy()]
             paths += paths_
@@ -177,9 +179,12 @@ class Evaluater():
         #make_PRC(labels,preds,save_fig_path,config.n_class) #クラスiの場合のグラフも作る (縦に3つでとりあえず作ってみる)
         #make_PRBar(labels,preds,save_fig_path2,config.n_class )
         #roc_auc = roc_auc_score(labels, preds,multi_class="ovr",average="macro")
+
+
+        print(preds,labels)
         
         #2クラス分類の場合
-        roc_auc = roc_auc_score(labels, preds)
+        roc_auc = roc_auc_score(labels, preds,multi_class='ovr',average='macro')
 
         #fig_path = model_info + '_ep_ROC.png'
         #save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
@@ -189,13 +194,13 @@ class Evaluater():
         temp_class = np.arange(config.n_class)
         preds = np.sum(preds*temp_class,axis=1)
 
-        threshold = 0.5
-        preds[preds<threshold] = 0
-        preds[preds>=threshold] = 1
+        #threshold = 0.5
+        #preds[preds<threshold] = 0
+        #preds[preds>=threshold] = 1
 
         # 1.6478594e-08
         # 二値より細かい分割の場合
-        #preds = np.array([round(x) for x in preds])
+        preds = np.array([round(x) for x in preds])
 
         #roc_auc = roc_auc_score(labels, preds)
 
@@ -227,9 +232,9 @@ class Evaluater():
         right += (preds == labels).sum()
         notright += len(preds) - (preds == labels).sum()
         accuracy = right / len(test_dataset)
-        recall = recall_score(labels,preds)
-        precision = precision_score(labels,preds)
-        f1 = f1_score(labels,preds)
+        recall = recall_score(labels,preds,average='macro')
+        precision = precision_score(labels,preds,average='macro')
+        f1 = f1_score(labels,preds,average='macro')
         #f1 = macro_f1(labels,preds,config.n_class)
         #make_F1Bar(labels,preds,save_fig_path3,config.n_class)
 

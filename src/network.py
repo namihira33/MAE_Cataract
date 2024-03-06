@@ -161,20 +161,28 @@ class  MAE_16to1(nn.Module):
         self.last_fc = nn.Linear(in_features=16,out_features=1,bias=True)
     
     def forward(self,x):
+        
+
         preds = torch.empty(0).to(device)
         for i in range(16):
             #i断面の画像のみを取得
-            pred = self.softmax(self.mae_vit(x[:,i,:,:].unsqueeze(1)))
-            temp_class_tensor = torch.arange(config.n_class).float().to(device)
-            pred = pred.unsqueeze(0)
-            temp_class_tensor = temp_class_tensor.unsqueeze(1)
-            pred = torch.matmul(pred,temp_class_tensor).to(device)
-            preds = torch.cat((preds,pred),0)
-        
-        preds = torch.transpose(preds,0,1)
+            pred = self.softmax(self.mae_vit(x[:,i,:,:].unsqueeze(1))).unsqueeze(2)
+
+            #MSELossの時の処理
+            #temp_class_tensor = torch.arange(config.n_class).float().to(device)
+            #pred = pred.unsqueeze(0)
+            #temp_class_tensor = temp_class_tensor.unsqueeze(1)
+            #pred = torch.matmul(pred,temp_class_tensor).to(device)
+
+            preds = torch.cat((preds,pred),2)
+
+        #print(preds.size())
+
         preds = preds.squeeze()
         x = self.last_fc(preds)
-        x = self.sigmoid(x)
+        x = self.softmax(x)
+
+        #x = torch.transpose(x,1,2)
 
         return x
 
