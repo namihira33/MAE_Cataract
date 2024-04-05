@@ -54,6 +54,149 @@ class Focal_MultiLabel_Loss(nn.Module):
       focal_loss = ((1-ce_exp)**self.gamma) * ce_withweights
       return focal_loss.mean()
 
+class QuatroOverSampler:
+    def __init__(self,dataset,n_samples):
+        imgs = torch.empty(0)
+        labels = torch.empty(0)
+
+        l = len(dataset)
+        self.imgs = torch.squeeze(torch.stack([dataset[i][0].detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        self.labels = torch.squeeze(torch.stack([dataset.pick_label(i).detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        #self.labels = torch.squeeze(torch.stack([dataset[i][1].detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        labels = []
+        for i in range(l):
+            if all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([1])):
+                labels += [1]
+            elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([2])):
+                labels += [2]
+            elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([3])):
+                labels += [3]
+            else :
+                labels += [0]
+
+        #datasetをtorch.Tensorとして取り出す
+        #for i in range(len(dataset)):
+        #    img = dataset[i][0]
+        #    imgs = torch.cat((imgs,img),0)
+        #    label = torch.Tensor([np.argmax(dataset[i][1].detach().cpu().numpy())])
+        #    labels = torch.cat((labels,label))
+
+        #self.features = imgs
+        #self.labels = labels
+
+        label_counts = np.bincount(labels)
+        major_label = label_counts.argmax()
+        mid_label = np.argsort(label_counts)[-2]
+        mid_label2 = np.argsort(label_counts)[-3]
+        minor_label = label_counts.argmin()
+
+        self.major_indices = np.where(labels == major_label)[0]
+        self.mid_indices = np.where(labels == mid_label)[0]
+        self.mid2_indices = np.where(labels == mid_label2)[0]
+        self.minor_indices = np.where(labels == minor_label)[0]
+
+        np.random.shuffle(self.major_indices)
+        np.random.shuffle(self.mid_indices)
+        np.random.shuffle(self.mid2_indices)
+        np.random.shuffle(self.minor_indices)
+
+        self.used_indices = 0  #多数クラスの中で使用したインデックスの数
+        self.count = 0 #多数クラスの中で使用したサンプル数の数
+        self.n_samples = n_samples
+        self.batch_size = self.n_samples * 4
+
+    def __iter__(self):
+        self.count = 0
+        self.used_indices = 0
+        while self.count + self.n_samples < len(self.major_indices):
+            # 多数派データ(major_indices)からは順番に選び出し
+            # 少数派データ(minor_indices)からはランダムに選び出す操作を繰り返す
+            indices = self.major_indices[self.used_indices:self.used_indices + self.n_samples].tolist() + np.random.choice(self.mid2_indices, self.n_samples, replace=False).tolist() + np.random.choice(self.mid_indices, self.n_samples, replace=False).tolist() + np.random.choice(self.minor_indices, self.n_samples, replace=False).tolist()
+            np.random.shuffle(indices)
+
+            #labels = torch.empty(0)
+            #for index in indices:
+            #    np.argmax(self.labels[index].detach().cpu().numpy())
+            #    label = torch.eye(config.n_class)[self.labels[index].detach().cpu().numpy()]
+            #    label = label.unsqueeze(0)
+            #    labels = torch.cat((labels,label))
+
+            yield torch.tensor(self.imgs[indices]), self.labels[indices],0
+
+            self.used_indices += self.n_samples
+            self.count += self.n_samples
+
+    def __len__(self):
+        return len(self.major_indices)//self.n_samples + 1
+
+class QuatroUnderSampler:
+    def __init__(self,dataset,n_samples):
+        imgs = torch.empty(0)
+        labels = torch.empty(0)
+
+        l = len(dataset)
+        self.imgs = torch.squeeze(torch.stack([dataset[i][0].detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        self.labels = torch.squeeze(torch.stack([dataset.pick_label(i).detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        #self.labels = torch.squeeze(torch.stack([dataset[i][1].detach().cpu() for i in range(len(dataset))],dim=0),dim=1)
+        labels = []
+        for i in range(l):
+            if all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([1])):
+                labels += [1]
+            elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([2])):
+                labels += [2]
+            elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([3])):
+                labels += [3]
+            else :
+                labels += [0]
+
+        #self.features = imgs
+        #self.labels = labels
+
+        label_counts = np.bincount(labels)
+        major_label = label_counts.argmax()
+        mid_label = np.argsort(label_counts)[-2]
+        mid_label2 = np.argsort(label_counts)[-3]
+        minor_label = label_counts.argmin()
+
+        self.major_indices = np.where(labels == major_label)[0]
+        self.mid_indices = np.where(labels == mid_label)[0]
+        self.mid2_indices = np.where(labels == mid_label2)[0]
+        self.minor_indices = np.where(labels == minor_label)[0]
+
+        np.random.shuffle(self.major_indices)
+        np.random.shuffle(self.mid_indices)
+        np.random.shuffle(self.mid2_indices)
+        np.random.shuffle(self.minor_indices)
+
+        self.used_indices = 0  #(少数クラスの中で使用したインデックスの数)
+        self.count = 0
+        self.n_samples = n_samples
+        self.batch_size = self.n_samples * 4
+
+    def __iter__(self):
+        self.count = 0
+        self.used_indices = 0
+        while self.count + self.n_samples < len(self.major_indices):
+            # 全てのデータ(major_indices)から順番に選び出す
+            # 少数派データ(minor_indices)が1周したタイミングで1epochを終える
+            indices = self.major_indices[self.used_indices:self.used_indices + self.n_samples].tolist() + self.mid2_indices[self.used_indices:self.used_indices + self.n_samples].tolist() + self.mid_indices[self.used_indices:self.used_indices + self.n_samples].tolist() + self.minor_indices[self.used_indices:self.used_indices + self.n_samples].tolist()
+            np.random.shuffle(indices)
+
+            #labels = torch.empty(0)
+            #for index in indices:
+            #    np.argmax(self.labels[index].detach().cpu().numpy())
+            #    label = torch.eye(config.n_class)[self.labels[index].detach().cpu().numpy()]
+            #    label = label.unsqueeze(0)
+            #    labels = torch.cat((labels,label))
+
+            yield torch.tensor(self.imgs[indices]), self.labels[indices],0
+
+            self.used_indices += self.n_samples
+            self.count += self.n_samples
+
+    def __len__(self):
+        return len(self.minor_indices)//self.n_samples + 1
+
 
 
 class NormalSampler:
@@ -580,7 +723,7 @@ def make_PRBar(labels,preds,save_fig_path,n_class):
 def macro_pr_auc(labels,preds,n_class):
         # 2クラスだったら、PR-AUCをそのまま返す
         if n_class == 2:
-            #preds = preds[:,1]
+            preds = preds[:,1]
 
             try:
                 precisions,recalls,thresholds = precision_recall_curve(labels, preds)

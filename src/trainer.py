@@ -86,6 +86,8 @@ def calc_class_count(dataset,n_class):
             label = 1
         elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([2])):
             label = 2
+        elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([3])):
+            label = 3
         else :
             label = 0
         class_count[label] += 1
@@ -230,11 +232,14 @@ class Trainer():
                     self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],num_workers=os.cpu_count(),shuffle=True)
                 elif self.c['sampler'] == 'over':
                     #self.dataloaders['learning'] = BinaryOverSampler(learning_dataset,self.c['bs']//config.n_class)
-                    self.dataloaders['learning'] = TripleOverSampler(learning_dataset,self.c['bs']//config.n_class)
+                    #self.dataloaders['learning'] = TripleOverSampler(learning_dataset,self.c['bs']//config.n_class)
+                    self.dataloaders['learning'] = QuatroOverSampler(learning_dataset,self.c['bs']//config.n_class)
 
                 elif self.c['sampler'] == 'under':
                     #self.dataloaders['learning'] = BinaryUnderSampler(learning_dataset,self.c['bs']//config.n_class)
-                    self.dataloaders['learning'] = TripleUnderSampler(learning_dataset,self.c['bs']//config.n_class)
+                    #self.dataloaders['learning'] = TripleUnderSampler(learning_dataset,self.c['bs']//config.n_class)
+                    self.dataloaders['learning'] = QuatroUnderSampler(learning_dataset,self.c['bs']//config.n_class)
+
 
 
                 if not self.c['evaluate']:
@@ -345,8 +350,6 @@ class Trainer():
             inputs_ = inputs_.to(device)
             labels_ = labels_.to(device)
 
-            print(labels_)
-
             if inputs_.shape[0] == 1:
                 break
 
@@ -376,7 +379,7 @@ class Trainer():
                 #if outputs_.size() != labels_.size():
                 #    break
 
-                loss = self.criterion(outputs_, labels_.float())
+                loss = self.criterion(outputs_, labels_)
                 total_loss += loss.item()
 
                 if phase == 'learning':
@@ -402,11 +405,11 @@ class Trainer():
 
         try:
             roc_auc = roc_auc_score(labels, preds,multi_class='ovr',average='macro')
+            #roc_auc = roc_auc_score(labels, preds[:,1])
         except:
             roc_auc = 0
 
         #予測値決定後のスコア (マクロ平均)を求める
-
         preds = np.argmax(preds,axis=1)
 
         total_loss /= len(preds)

@@ -63,10 +63,11 @@
 #C2 MAE 16to1
 #python3 ./src/evaluate.py 133 spin type=C
 #python3 ./src/evaluate.py 153 spin type=C
+
 #python3 ./src/evaluate.py 154 spin type=P
 
 #C2 MAE 16to1 corrected
 #python3 ./src/evaluate.py 153 spin type=C
 
 #N3 MAE 16to1
-python3 ./src/evaluate.py 158 spin type=N
+#python3 ./src/evaluate.py 158 spin type=N

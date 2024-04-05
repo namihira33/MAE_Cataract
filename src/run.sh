@@ -7,7 +7,7 @@
 
 for preprocess in Add_BlackRects
 do
-    for sampler in over
+    for sampler in under over
     do
         for gamma in 0
        do
@@ -15,7 +15,7 @@ do
           do
               for lr in 5e-4
                do
-               python3 ./src/run.py cv=0 evaluate=0 mode=spin type=N preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=1
+               python3 ./src/run.py cv=0 evaluate=0 mode=spin type=N preprocess=$preprocess sampler=$sampler gamma=$gamma beta=$beta lr=$lr epoch=50
                done
           done
      done
@@ -63,7 +63,6 @@ done
 
 #N3 (newdiv) best
 #python3 ./src/run.py cv=0 evaluate=1 mode=horizontal type=N preprocess=Add_BlackRects sampler=under gamma=0.5 beta=0 lr=1e-4 epoch=32
-
 
 
 

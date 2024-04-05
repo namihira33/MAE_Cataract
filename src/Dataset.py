@@ -80,9 +80,9 @@ class OCThorizontalDataset(OCThorizontalDatasetBase):
         elif label_base == 2:
             return 1
         elif label_base == 3:
-            return 1
-        else:
             return 2
+        else:
+            return 3
 
 #回転断面画像のデータセット
 '''
@@ -251,9 +251,9 @@ class OCTspinDataset(OCTspinDatasetBase):
         elif label_base == 2:
             return 1
         elif label_base == 3:
-            return 1
-        else:
             return 2
+        elif label_base >= 4:
+            return 3
 
 
 class OCTspinMAEDatasetBase(Dataset):
