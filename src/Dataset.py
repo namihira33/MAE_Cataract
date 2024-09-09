@@ -81,8 +81,12 @@ class OCThorizontalDataset(OCThorizontalDatasetBase):
             return 1
         elif label_base == 3:
             return 2
-        else:
+        elif label_base == 4:
             return 3
+        elif label_base == 5:
+            return 4
+        elif label_base == 6:
+            return 5
 
 #回転断面画像のデータセット
 '''
@@ -252,8 +256,12 @@ class OCTspinDataset(OCTspinDatasetBase):
             return 1
         elif label_base == 3:
             return 2
-        elif label_base >= 4:
+        elif label_base == 4:
             return 3
+        elif label_base == 5:
+            return 4
+        elif label_base == 6:
+            return 5
 
 
 class OCTspinMAEDatasetBase(Dataset):
@@ -318,7 +326,7 @@ class OCTspinMAEDatasetBase(Dataset):
         image_name = self.image_names[index*16]
 
         #label = self.labels[index*16]
-        #label = torch.eye(config.n_class)[self.labels[index]]
+        label = torch.eye(config.n_class)[self.labels[index]]
         #item_index = self.item_indexes[index]
         #if self.transform is not None:
         #    image = self.transform(image)
@@ -328,9 +336,9 @@ class OCTspinMAEDatasetBase(Dataset):
     def __len__(self):
         return len(self.image_names) // 16
 
-    #def pick_label(self, index):
-    #    label = torch.eye(config.n_class)[self.labels[index]]
-    #    return torch.Tensor(label)
+    def pick_label(self, index):
+        label = torch.eye(config.n_class)[self.labels[index]]
+        return torch.Tensor(label)
 
         
 

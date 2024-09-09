@@ -69,5 +69,5 @@
 #C2 MAE 16to1 corrected
 #python3 ./src/evaluate.py 153 spin type=C
 
-#N3 MAE 16to1
-#python3 ./src/evaluate.py 158 spin type=N
+#N6 MAE 16to1
+python3 ./src/evaluate.py 176 spin type=N

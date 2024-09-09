@@ -137,9 +137,12 @@ class Evaluater():
         preds,labels,paths,total_loss,accuracy= [],[],[],0,0
         right,notright = 0,0
 
+        preds,labels,outputs,total_loss= [],[],[],0
+
         self.net.eval()
 
         for inputs_, labels_,paths_ in tqdm(self.dataloaders['test']):
+
             inputs_ = inputs_.to(device)
             labels_ = labels_.to(device)
 
@@ -147,20 +150,41 @@ class Evaluater():
 
 
             torch.set_grad_enabled(True)
-            outputs_ = self.net(inputs_)
+            p_x,outputs_ = self.net(inputs_)
 
             #loss = self.criterion(outputs_, labels_)
 
             outputs_ = torch.squeeze(outputs_)
 
-            preds += [outputs_.detach().cpu().numpy()]
+            preds += [p_x[0].detach().cpu().numpy()]
             labels += [labels_.detach().cpu().numpy()]
+            outputs += [outputs_.detach().cpu().numpy()]
             paths += paths_
+
+            print(preds,labels)
 
             #total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
 
+
+        #preds += [p_x[0].detach().cpu().numpy()]
+        #labels += [labels_.detach().cpu().numpy()]
+        #outputs += [outputs_.detach().cpu().numpy()]
+        #total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
+
         preds = np.concatenate(preds)
+        outputs = np.concatenate(outputs)
         labels = np.concatenate(labels)
+
+        print(labels)
+
+        # ラベルをone-hot形式に変換
+        def numpy_onehot(x):
+            unique = np.unique(x)
+            onehot = np.zeros((x.size, unique.size))
+            onehot[np.arange(x.size), x - x.min()] = 1
+            return onehot
+
+        labels_onehot = numpy_onehot(labels)
 
 
         # 作成画像の保存パス,PR-AUCの計算,PR曲線の描画
@@ -181,18 +205,17 @@ class Evaluater():
         #roc_auc = roc_auc_score(labels, preds,multi_class="ovr",average="macro")
 
 
-        print(preds,labels)
+        print(preds,labels_onehot)
         
-        #2クラス分類の場合
-        roc_auc = roc_auc_score(labels, preds,multi_class='ovr',average='macro')
-
+        roc_auc = roc_auc_score(labels_onehot, preds,multi_class='ovr',average='macro')
+        #roc_auc = roc_auc_score(labels, preds)
         #fig_path = model_info + '_ep_ROC.png'
         #save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
         #make_ROC(labels,preds[:,1],save_fig_path)
 
         #加重平均・四捨五入で予測
-        temp_class = np.arange(config.n_class)
-        preds = np.sum(preds*temp_class,axis=1)
+        #temp_class = np.arange(config.n_class)
+        #preds = np.sum(preds*temp_class,axis=1)
 
         #threshold = 0.5
         #preds[preds<threshold] = 0
@@ -200,7 +223,8 @@ class Evaluater():
 
         # 1.6478594e-08
         # 二値より細かい分割の場合
-        preds = np.array([round(x) for x in preds])
+        #preds = np.array([round(x) for x in preds])
+        outputs = np.array([round(x) for x in outputs])
 
         #roc_auc = roc_auc_score(labels, preds)
 
@@ -226,19 +250,19 @@ class Evaluater():
         fig_path = model_info + '_ep_CM.png'
         save_fig_path = os.path.join(config.LOG_DIR_PATH,'images',fig_path)
 
-        cm = confusion_matrix(labels,preds)
-        make_ConfusionMatrix(cm,save_fig_path)
+        cm = confusion_matrix(labels,outputs)
+       # make_ConfusionMatrix(cm,save_fig_path)
 
-        right += (preds == labels).sum()
-        notright += len(preds) - (preds == labels).sum()
+        right += (outputs == labels).sum()
+        notright += len(preds) - (outputs == labels).sum()
         accuracy = right / len(test_dataset)
-        recall = recall_score(labels,preds,average='macro')
-        precision = precision_score(labels,preds,average='macro')
-        f1 = f1_score(labels,preds,average='macro')
+        recall = recall_score(labels,outputs,average='macro')
+        precision = precision_score(labels,outputs,average='macro')
+        f1 = f1_score(labels,outputs,average='macro')
         #f1 = macro_f1(labels,preds,config.n_class)
         #make_F1Bar(labels,preds,save_fig_path3,config.n_class)
 
-        kappa = cohen_kappa_score(labels,preds,weights='quadratic')
+        kappa = cohen_kappa_score(labels,outputs,weights='quadratic')
 
         print('accuracy (macro) :',accuracy)
         print('PR-AUC (macro) :',pr_auc)

@@ -617,16 +617,18 @@ def make_ROC(labels,preds,save_fig_path):
         fig.savefig(save_fig_path)
 
 def make_ConfusionMatrix(cm,save_fig_path):
-        fig,ax = plt.subplots(figsize=(6,6))
-        sns.set(font="IPAexGothic",font_scale=1.8)  
-        sns.heatmap(cm,square=True,cbar=True,annot=True,cmap='Blues',fmt='d')
-        ax.set_ylabel('正解値',fontsize=18)
+        fig,ax = plt.subplots(figsize=(9,9))
+        sns.set(font="IPAexGothic",font_scale=5)  
+        sns.heatmap(cm,square=True,cbar=False,annot=True,cmap='Blues',fmt='d')
+        ax.set_ylabel('正解値',fontsize=24)
         #ax.set_xticklabels(['1','2,3','4≦'],fontsize=20)
         #ax.set_yticklabels(['1','2,3','4≦'],fontsize=20)
         #ax.set_xticklabels(['N1','N2,N3','≧N4'],fontsize=20)
         #ax.set_yticklabels(['N1','N2,N3','≧N4'],fontsize=20)
-        ax.set_xlabel('予測値',fontsize=18)
-        ax.set_title('Confusion Matrix',fontsize=20)
+        ax.set_xticklabels(['C1','≧C2'],fontsize=45)
+        ax.set_yticklabels(['C1','≧C2'],fontsize=45)
+        ax.set_xlabel('予測値',fontsize=24)
+        # ax.set_title('Confusion Matrix',fontsize=24)
         fig.savefig(save_fig_path)
 
 def make_PRC(labels,preds,save_fig_path,n_class):

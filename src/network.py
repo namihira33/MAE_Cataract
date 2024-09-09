@@ -158,15 +158,15 @@ class  MAE_16to1(nn.Module):
         self.mae_vit = vit
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
-        self.last_fc = nn.Linear(in_features=16,out_features=1,bias=True)
+        self.last_fc = nn.Linear(in_features=16,out_features=1,bias=False)
     
     def forward(self,x):
-        
-
         preds = torch.empty(0).to(device)
         for i in range(16):
             #i断面の画像のみを取得
-            pred = self.softmax(self.mae_vit(x[:,i,:,:].unsqueeze(1))).unsqueeze(2)
+            pred = self.softmax(self.mae_vit(x[:,i,:,:].unsqueeze(1)))
+
+            #print(pred)
 
             #MSELossの時の処理
             #temp_class_tensor = torch.arange(config.n_class).float().to(device)
@@ -174,17 +174,50 @@ class  MAE_16to1(nn.Module):
             #temp_class_tensor = temp_class_tensor.unsqueeze(1)
             #pred = torch.matmul(pred,temp_class_tensor).to(device)
 
+            #print(pred)
+
+            pred = pred.unsqueeze(2)
+
             preds = torch.cat((preds,pred),2)
+            #preds = torch.cat((preds,pred),0)
 
-        #print(preds.size())
+        #preds = torch.transpose(preds,0,1)
+        #print(preds)
+        #preds = preds.squeeze()
 
-        preds = preds.squeeze()
-        x = self.last_fc(preds)
-        x = self.softmax(x)
+        p_x = self.last_fc(preds)
+        p_x = torch.mean(preds,dim=2)
+
+        #MSELossの時の処理
+        temp_class_tensor = torch.arange(config.n_class).float().to(device)
+        p_x = p_x.unsqueeze(0)
+        #p_x = p_x.squeeze(2)
+
+        temp_class_tensor = temp_class_tensor.unsqueeze(1)
+        x = torch.matmul(p_x,temp_class_tensor).to(device)
 
         #x = torch.transpose(x,1,2)
 
-        return x
+        #preds = torch.empty(0).to(device)
+        #for i in range(16):
+            #i断面の画像のみを取得
+        #    pred = self.mae_vit(x[:,i,:,:].unsqueeze(1)).unsqueeze(2) #softmax抜きで実行してみてもいいかも
+
+            #MSELossの時の処理
+            #temp_class_tensor = torch.arange(config.n_class).float().to(device)
+            #pred = pred.unsqueeze(0)
+            #temp_class_tensor = temp_class_tensor.unsqueeze(1)
+            #pred = torch.matmul(pred,temp_class_tensor).to(device)
+
+        #    preds = torch.cat((preds,pred),2)
+
+        #print(preds.size())
+
+        #preds = preds.squeeze()
+        #x = self.last_fc(preds)
+        #x = self.softmax(x)
+
+        return p_x,x
 
 
 '''

@@ -16,6 +16,7 @@ import models_mae
 from torch.utils.data.dataset import Subset
 from torch.utils.data import DataLoader 
 from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import label_binarize
 from utils  import *
 from network import *
 from Dataset import *
@@ -88,6 +89,10 @@ def calc_class_count(dataset,n_class):
             label = 2
         elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([3])):
             label = 3
+        elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([4])):
+            label = 4
+        elif all(torch.argmax(dataset.pick_label(i)) == torch.Tensor([5])):
+            label = 5
         else :
             label = 0
         class_count[label] += 1
@@ -211,7 +216,7 @@ class Trainer():
                 #self.optimizer = optim.AdamW(params=self.net.parameters(),lr=self.c['lr'])
                 #self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,max_epochs=70,warmup_start_ler=5e-5,eta_min=5e-5)
                 #self.optimizer = Lion(params=self.net.parameters(),lr=self.c['lr'],weight_decay=1e-2)
-                self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,step_size=15,gamma=0.8)
+                #self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,step_size=15,gamma=0.8)
 
                 #画像に対応したIDに変換 -> Dataloaderで読み込む。
                 learning_index,valid_index = calc_dataset_index(learning_id_index,valid_id_index,'train',self.c['n_per_unit'])
@@ -223,8 +228,8 @@ class Trainer():
                 self.class_weight = calc_class_weight(learning_dataset,config.n_class,beta=self.c['beta'])
                 calc_class_count(learning_dataset,config.n_class)
                 #self.criterion = nn.BCELoss(weight=self.class_weight.to(device))
-                self.criterion = Focal_MultiLabel_Loss(gamma=self.c['gamma'],weights=self.class_weight.to(device))
-                #self.criterion = nn.MSELoss()
+                #self.criterion = Focal_MultiLabel_Loss(gamma=self.c['gamma'],weights=self.class_weight.to(device))
+                self.criterion = nn.MSELoss()
 
 
                 #Dataloaderの種類を指定
@@ -339,7 +344,8 @@ class Trainer():
 
     #1epochごとの処理
     def execute_epoch(self, epoch, phase):
-        preds, labels,total_loss= [],[],0
+        preds,labels,outputs,total_loss= [],[],[],0
+
         if phase == 'learning':
             self.net.train()
         else:
@@ -371,15 +377,20 @@ class Trainer():
 #                    feature_extractor = DeiTFeatureExtractor.from_pretrained(model_name)
  #                   inputs_ = feature_extractor(images=inputs_,return_tensor='pt')
 
-                outputs_ = self.net(inputs_).to(device)
+                p_x,outputs_ = self.net(inputs_)
+
+                outputs_ = outputs_.to(device)
 
                 #outputs__ = outputs_.unsqueeze(1)
                 outputs_ = torch.squeeze(outputs_)
 
+                outputs_ =   torch.where(outputs_ < 0, torch.tensor(0.), outputs_)
+                outputs_ =   torch.where(outputs_ > 5, torch.tensor(5.), outputs_)
+
                 #if outputs_.size() != labels_.size():
                 #    break
 
-                loss = self.criterion(outputs_, labels_)
+                loss = self.criterion(outputs_, labels_.float())
                 total_loss += loss.item()
 
                 if phase == 'learning':
@@ -389,40 +400,63 @@ class Trainer():
             #softmax = nn.Softmax(dim=1)
             #ouputs_ = softmax(outputs_)
 
-            preds += [outputs_.detach().cpu().numpy()]
+#            preds += [p_x[0].detach().cpu().numpy()]
+
+            preds += [p_x[0].detach().cpu().numpy()]
             labels += [labels_.detach().cpu().numpy()]
+            outputs += [outputs_.detach().cpu().numpy()]
             total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
 
-        if phase == 'learning' :
-            self.scheduler.step()
+        #if phase == 'learning' :
+        #   self.scheduler.step()
         #print(f"Epoch [{epoch}], Learning Rate: {self.optimizer.param_groups[0]['lr']}")
         #print(preds)
 
         preds = np.concatenate(preds)
+        outputs = np.concatenate(outputs)
         labels = np.concatenate(labels)
 
-        pr_auc = macro_pr_auc(labels,preds,config.n_class)
+        # ラベルをone-hot形式に変換
+        def numpy_onehot(x):
+            unique = np.unique(x)
+            onehot = np.zeros((x.size, unique.size))
+            onehot[np.arange(x.size), x - x.min()] = 1
+            return onehot
+
+        labels_onehot = numpy_onehot(labels)
+        #labels_binarized = label_binarize(labels, classes=range(config.n_class))
+
+
+        pr_auc = macro_pr_auc(labels_onehot,preds,config.n_class)
 
         try:
-            roc_auc = roc_auc_score(labels, preds,multi_class='ovr',average='macro')
+            roc_auc = roc_auc_score(labels_onehot, preds,multi_class='ovr',average='macro')
             #roc_auc = roc_auc_score(labels, preds[:,1])
         except:
             roc_auc = 0
 
         #予測値決定後のスコア (マクロ平均)を求める
-        preds = np.argmax(preds,axis=1)
+        #preds = np.argmax(preds,axis=1)
+        #outputs = np.argmax(outputs,axis=1)
+        #outputs = np.array(list(map(np.round,outputs)))
+        outputs = np.array([round(x) for x in outputs])
 
-        total_loss /= len(preds)
+        #print(labels,preds,outputs)
+
+        print(outputs.shape)
+        print(labels,outputs)        
+
+        total_loss /= len(outputs)
         #recall = recall_score(labels,preds,average='macro')
-        recall = recall_score(labels,preds,average='macro')
+        recall = recall_score(labels,outputs,average='macro')
 
         #precision = precision_score(labels,preds,zero_division=0,average='macro')
-        precision = precision_score(labels,preds,zero_division=0,average='macro')
+        precision = precision_score(labels,outputs,zero_division=0,average='macro')
 
         #f1 = f1_score(labels,preds,average='macro')
-        f1 = f1_score(labels,preds,average='macro')
+        f1 = f1_score(labels,outputs,average='macro')
 
-        confusion_Matrix = confusion_matrix(labels,preds)
+        confusion_Matrix = confusion_matrix(labels,outputs)
         try:
             TN = confusion_Matrix[0][0]
         except:

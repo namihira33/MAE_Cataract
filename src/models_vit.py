@@ -67,7 +67,8 @@ def vit_base_patch16(**kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        num_classes=config.n_class,
+#       num_classes=config.n_class,
+        num_classes=1,
         in_chans=config.n_per_unit,
         **kwargs
     )
